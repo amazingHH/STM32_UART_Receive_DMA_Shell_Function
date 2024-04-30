@@ -57,6 +57,9 @@ uint8_t aRXBufferA[RX_BUFFER_SIZE];
 uint8_t aRXBufferB[RX_BUFFER_SIZE];
 uint8_t CR[2] = {'\r','\n'};
 uint8_t aRXBuffertest[RX_BUFFER_SIZE];
+uint8_t aRXBufferclean[RX_BUFFER_SIZE];
+int Cleanbuffersize = 0;
+
 
 
 
@@ -348,9 +351,9 @@ void my_printf(const char *fmt, ...) // custom printf() function
 }
 
 
-void FH_Micro_Shell_CMD(char * cmd, uint8_t size)
+void FH_Micro_Shell_CMD(uint8_t * cmd, uint8_t size)
 {
-  char temp[20];
+    char temp[20];
 	memset(temp,0,sizeof(temp));
 	for (int i = 0; i< (size-1); i++)
 	{
@@ -371,6 +374,90 @@ void FH_Micro_Shell_CMD(char * cmd, uint8_t size)
 }
 
 /**
+  * @brief  processing the backspace from UART shell commands
+  *         (Rx event notification called after use of advanced reception service).
+  * @param  cmd  Original commnds from detector.
+  * @param  buffer New buffer to get available commands
+  * @param  size Original command size
+  * @param  cleansize new buffer size
+  * @retval None
+  */
+
+void Shell_Backspace_Processor(uint8_t * cmd,uint8_t * buffer, uint8_t size, int* cleansize)
+{
+	char temp[20];
+	//static bool need_delete_flag = false;
+	static uint8_t BS_cnt = 0;
+	static uint8_t temp_buffer_pos = 0;
+	
+	for (int i = 0; i< size-1; i++) {
+	    if ((cmd[i] == 0x8) && (i >= 1))
+	    {
+			BS_cnt++;
+			continue;
+	    }
+		if ((BS_cnt >= 2))
+		{
+		    if (i >= 4) {
+				temp[i-2*BS_cnt] = cmd[i];
+				temp_buffer_pos = i-2*BS_cnt+1;
+		    } else {
+				temp[0] = cmd[i];
+				temp_buffer_pos = 1;			
+			}
+			BS_cnt--;
+			continue;
+		}		
+	    temp[temp_buffer_pos] = cmd[i];
+		temp_buffer_pos++;
+		BS_cnt=0;		
+	}
+
+	for(int i = 0; i< temp_buffer_pos; i++)
+	{
+	    buffer[i] = temp[i];
+	}
+	*cleansize = temp_buffer_pos;
+
+}
+
+/**
+  * @brief  User implementation of UART shell commands
+  *         (Rx event notification called after use of advanced reception service).
+  * @param  singleword from UART callback function
+  * @param  Size  Number of data available in application reception buffer (indicates a position in
+  *               reception buffer until which, data are available)
+  * @retval None
+  */
+
+void Shell_CMD_Detector(uint8_t singleword)
+{
+    static uint8_t cnt= 0;
+    aRXBuffertest[cnt] = singleword;
+
+    cnt ++;
+	if (pBufferReadyForReception[0] == 0xD)
+	{
+	   //for (int i = 0; i<RX_BUFFER_SIZE; i++)
+	   //{
+	   PrintInfo(&huart3, &CR, 2);
+	   PrintInfo(&huart3, aRXBuffertest,cnt);
+	   PrintInfo(&huart3, &CR, 2);
+	   //}
+	   Shell_Backspace_Processor(aRXBuffertest, aRXBufferclean, cnt,&Cleanbuffersize);
+	   FH_Micro_Shell_CMD(aRXBufferclean,Cleanbuffersize);
+	   memset(aRXBuffertest, 0, RX_BUFFER_SIZE);
+	   cnt = 0;
+	}
+	//cnt ++;
+	if (cnt >= RX_BUFFER_SIZE)
+	{
+	   cnt = 0;
+	}
+
+}
+
+/**
   * @brief  User implementation of the Reception Event Callback
   *         (Rx event notification called after use of advanced reception service).
   * @param  huart UART handle
@@ -383,7 +470,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
   static uint8_t old_pos = 0;
   uint8_t *ptemp;
   uint8_t i;
-  static uint8_t cnt= 0;;
+  
 
   /* Check if number of received data in recpetion buffer has changed */
   if (Size != old_pos)
@@ -427,26 +514,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     ptemp = pBufferReadyForUser;
     pBufferReadyForUser = pBufferReadyForReception;
     pBufferReadyForReception = ptemp;
-    aRXBuffertest[cnt] = pBufferReadyForReception[0];
-
-    cnt ++;
-	if (pBufferReadyForReception[0] == 0xD)
-	{
-	   //for (int i = 0; i<RX_BUFFER_SIZE; i++)
-	   //{
-	   PrintInfo(&huart3, &CR, 2);
-	   PrintInfo(&huart3, aRXBuffertest,cnt);
-	   PrintInfo(&huart3, &CR, 2);
-	   //}
-	   FH_Micro_Shell_CMD(aRXBuffertest,cnt);
-	   memset(aRXBuffertest, 0, RX_BUFFER_SIZE);
-	   cnt = 0;
-	}
-	//cnt ++;
-	if (cnt >= RX_BUFFER_SIZE)
-	{
-	   cnt = 0;
-	}
+    Shell_CMD_Detector(pBufferReadyForReception[0]);
   }
   /* Update old_pos as new reference of position in User Rx buffer that
      indicates position to which data have been processed */
