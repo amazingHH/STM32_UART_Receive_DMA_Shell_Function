@@ -355,7 +355,7 @@ void FH_Micro_Shell_CMD(uint8_t * cmd, uint8_t size)
 {
     char temp[20];
 	memset(temp,0,sizeof(temp));
-	for (int i = 0; i< (size-1); i++)
+	for (int i = 0; i< (size); i++)
 	{
 	    temp[i] = cmd[i];
 	}
@@ -387,27 +387,30 @@ void Shell_Backspace_Processor(uint8_t * cmd,uint8_t * buffer, uint8_t size, int
 {
 	char temp[20];
 	//static bool need_delete_flag = false;
-	static uint8_t BS_cnt = 0;
-	static uint8_t temp_buffer_pos = 0;
+	uint8_t BS_cnt = 0;
+	uint8_t BS_MAX = 0;
+	uint8_t temp_buffer_pos = 0;
 	
 	for (int i = 0; i< size-1; i++) {
-	    if ((cmd[i] == 0x8) && (i >= 1))
-	    {
+	    if ((cmd[i] == 0x8) && (i >= 1)) {
 			BS_cnt++;
+			BS_MAX++;
 			continue;
 	    }
-		if ((BS_cnt >= 2))
-		{
-		    if (i >= 4) {
-				temp[i-2*BS_cnt] = cmd[i];
-				temp_buffer_pos = i-2*BS_cnt+1;
+		if ((BS_cnt >= 1)) {
+		    if (i >= (2*BS_MAX)) {
+				temp[i-2*BS_MAX] = cmd[i];
+				temp_buffer_pos = i-2*BS_MAX+1;
 		    } else {
 				temp[0] = cmd[i];
 				temp_buffer_pos = 1;			
 			}
 			BS_cnt--;
 			continue;
-		}		
+		}
+		/*if(BS_cnt == 1) {
+			temp[temp_buffer_pos] = cmd[i]
+		}*/
 	    temp[temp_buffer_pos] = cmd[i];
 		temp_buffer_pos++;
 		BS_cnt=0;		
