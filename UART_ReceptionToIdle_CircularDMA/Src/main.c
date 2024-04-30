@@ -447,6 +447,7 @@ void Shell_CMD_Detector(uint8_t singleword)
 	   PrintInfo(&huart3, aRXBuffertest,cnt);
 	   PrintInfo(&huart3, &CR, 2);
 	   //}
+	   memset(aRXBufferclean, 0, RX_BUFFER_SIZE);
 	   Shell_Backspace_Processor(aRXBuffertest, aRXBufferclean, cnt,&Cleanbuffersize);
 	   FH_Micro_Shell_CMD(aRXBufferclean,Cleanbuffersize);
 	   memset(aRXBuffertest, 0, RX_BUFFER_SIZE);
